@@ -673,12 +673,11 @@ sim_reg_options(struct opt_odb_t *odb)
                    /* print */TRUE, /* format */NULL, /* !accrue */FALSE);
   opt_reg_int_list(odb, "-bpred:yags",
                    "2-level predictor config "
-		   "(<l1size> <l2size> <hist_size> <xor>)",
+		   "(<GBHRsize> <PHTsize> <GBHRwidth> <xor>)",
                    yags_config, yags_nelt, &yags_nelt,
 		   /* default */yags_config,
                    /* print */TRUE, /* format */NULL, /* !accrue */FALSE);
 
-                   //HACER LO MISMO PERO CON yags
 
   opt_reg_int_list(odb, "-bpred:comb",
 		   "combining predictor config (<meta_table_size>)",

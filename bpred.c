@@ -53,6 +53,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include <assert.h>
 
@@ -203,18 +204,45 @@ bpred_dir_create (
   switch (class) {
   case BPredYags:
     {
+      int taken_nottaken_size, i;
+
       if (l1size != 1)
-  fatal("level-1 size, `%d', debe ser 1", l1size);
-    pred_dir->config.two.l1size = l1size;
+  fatal("level-1 size, `%d', must be 1", l1size);
       if (l2size != 4 && l2size != 16 && l2size != 64 && l2size != 256 && l2size != 1024)
-  fatal("level-2 size, `%d', debe ser 4, 16, 64, 256 o 1024", l2size);
-    pred_dir->config.two.l2size = l2size;
+  fatal("level-2 size, `%d', must be 4, 16, 64, 256 or 1024", l2size);
       if (shift_width < 1 || shift_width > 5)
-  fatal("El ancho del GBHR, `%d', debe ser un valor entre 1 y 5", l2size);
-    pred_dir->config.two.shift_width = shift_width;
+  fatal("g bits of gbhr, `%d', must be between 1 y 5", l2size);
       if (xor != 0)
-  fatal("xor `%d', debe ser 0", xor);
-    pred_dir->config.two.xor = xor;
+  fatal("xor `%d', must be 0", xor);
+
+    //GBHR
+    pred_dir->config.two.g_bits = shift_width;
+    pred_dir->config.two.gbhr_table = 0b11111;
+
+    // PHT
+    pred_dir->config.two.pht_table = malloc(sizeof(char) * l2size);
+    memset(pred_dir->config.two.pht_table, 0b11, l2size);
+    pred_dir->config.two.pht_size = l2size;
+
+    // takenPHT and notTakenPHT
+    taken_nottaken_size = l2size / 8;
+    if(taken_nottaken_size < 1) {
+      taken_nottaken_size = 1;
+    }
+
+    pred_dir->config.two.taken_nottakenPHT_size = taken_nottaken_size;
+
+    pred_dir->config.two.takenPHT_table = malloc(sizeof(char) * taken_nottaken_size);
+    memset(pred_dir->config.two.takenPHT_table, 0b11111111, taken_nottaken_size);
+
+    pred_dir->config.two.notTakenPHT_table = malloc(sizeof(char) * taken_nottaken_size);
+    memset(pred_dir->config.two.notTakenPHT_table, 0b11111111, taken_nottaken_size);
+
+    i = l2size - shift_width;
+
+    pred_dir->config.two.g_mask = (1 << shift_width) - 1;
+    pred_dir->config.two.i_mask = (1 << i) - 1;
+
       }
 
 
@@ -301,6 +329,14 @@ bpred_dir_config(
       pred_dir->config.two.xor ? "" : "no", pred_dir->config.two.l2size);
     break;
 
+  case BPredYags:
+    fprintf(stream,
+      "pred_dir: %s, gbhr_size: 8, pht_size: %s, pht_taken_size: %s, pht_nottaken_size: %s, xor: 0, direct-mapped\n",
+      name, pred_dir->config.two.pht_size, pred_dir->config.two.taken_nottakenPHT_size,
+      pred_dir->config.two.taken_nottakenPHT_size);
+    break;
+
+
   case BPred2bit:
     fprintf(stream, "pred_dir: %s: 2-bit: %d entries, direct-mapped\n",
       name, pred_dir->config.bimod.size);
@@ -336,6 +372,13 @@ bpred_config(struct bpred_t *pred,	/* branch predictor instance */
 
   case BPred2Level:
     bpred_dir_config (pred->dirpred.twolev, "2lev", stream);
+    fprintf(stream, "btb: %d sets x %d associativity", 
+	    pred->btb.sets, pred->btb.assoc);
+    fprintf(stream, "ret_stack: %d entries", pred->retstack.size);
+    break;
+  
+  case BPredYags:
+    bpred_dir_config (pred->dirpred.twolev, "yags", stream);
     fprintf(stream, "btb: %d sets x %d associativity", 
 	    pred->btb.sets, pred->btb.assoc);
     fprintf(stream, "ret_stack: %d entries", pred->retstack.size);
@@ -387,6 +430,8 @@ bpred_reg_stats(struct bpred_t *pred,	/* branch predictor instance */
     case BPred2Level:
       name = "bpred_2lev";
       break;
+    case BPredYags:
+      name = "bpred_yags";
     case BPred2bit:
       name = "bpred_bimod";
       break;
@@ -553,6 +598,51 @@ bpred_dir_lookup(struct bpred_dir_t *pred_dir,	/* branch dir predictor inst */
         p = &pred_dir->config.two.l2table[l2index];
       }
       break;
+
+    case BPredYags:
+      {
+        int g, i, c, higher_bit_2bitCounter;
+        bool hit = false;
+        char first_prediction, alternative_prediction, tag, lower_bits_pc; 
+        char *prediction;
+
+        lower_bits_pc = baddr & 0b111111;  //get 6 lower bits from pc
+        g = pred_dir->config.two.gbhr_table & pred_dir->config.two.g_mask;
+        i = baddr & pred_dir->config.two.i_mask;
+        c = (i << pred_dir->config.two.g_bits) | g;
+
+        first_prediction = pred_dir->config.two.pht_table[c % pred_dir->config.two.pht_size];
+
+        higher_bit_2bitCounter = (first_prediction >> 1) & 0b01;
+        if(higher_bit_2bitCounter == 1) 
+        {
+          alternative_prediction = pred_dir->config.two.notTakenPHT_table[c % pred_dir->config.two.taken_nottakenPHT_size];
+          tag = (alternative_prediction & 0b11111100) >> 2;
+
+          if(tag == lower_bits_pc) {
+            hit = true;
+            prediction = &(pred_dir->config.two.notTakenPHT_table[c % pred_dir->config.two.taken_nottakenPHT_size]);
+          }
+        }
+
+        else 
+        {
+          alternative_prediction = pred_dir->config.two.takenPHT_table[c % pred_dir->config.two.taken_nottakenPHT_size];
+          tag = (alternative_prediction & 0b11111100) >> 2;
+
+          if(tag == lower_bits_pc) {
+            hit = true;
+            p = &(pred_dir->config.two.takenPHT_table[c % pred_dir->config.two.taken_nottakenPHT_size]);
+          }
+        }
+
+        if(!hit) {
+          p = &(pred_dir->config.two.pht_table[c % pred_dir->config.two.pht_size]);
+        }
+
+      }
+      break;
+
     case BPred2bit:
       p = &pred_dir->config.bimod.table[BIMOD_HASH(pred_dir, baddr)];
       break;
@@ -632,6 +722,15 @@ bpred_lookup(struct bpred_t *pred,	/* branch predictor instance */
 	    bpred_dir_lookup (pred->dirpred.twolev, baddr);
 	}
       break;
+
+    case BPredYags:
+      if ((MD_OP_FLAGS(op) & (F_CTRL|F_UNCOND)) != (F_CTRL|F_UNCOND))
+	{
+	  dir_update_ptr->pdir1 =
+	    bpred_dir_lookup (pred->dirpred.twolev, baddr);
+	}
+      break;
+
     case BPred2bit:
       if ((MD_OP_FLAGS(op) & (F_CTRL|F_UNCOND)) != (F_CTRL|F_UNCOND))
 	{

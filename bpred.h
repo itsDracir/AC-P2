@@ -105,6 +105,7 @@ enum bpred_class {
   BPredTaken,			/* static predict taken */
   BPredNotTaken,		/* static predict not taken */
   BPred_NUM,
+  BPredYags
 };
 
 /* an entry in a BTB */
@@ -130,15 +131,18 @@ struct bpred_dir_t {
       int xor;			/* history xor address flag */
       int *shiftregs;		/* level-1 history table */
       unsigned char *l2table;	/* level-2 prediction state table */
-    } two;//añadir 3 phts y 1 gbhr 
-    /*struct {
-      int GBHRsize;
-      int PHTsize;S
-      int GBHRwidth;
-      int *gbhr;
-      int xor;
-
-    } yags*/
+      char gbhr_table; /*g lower bits: prediction history*/
+      char g_bits;  /*between 1 and 5*/
+      char *pht_table; /*2 lower bits: 2BitCounter*/
+      int pht_size; /*number of entries*/
+      char *takenPHT_table; /*tag (6 bits) and 2BitCounter (2 bits)*/
+      char *notTakenPHT_table; /*tag (6 bits) and 2BitCounter (2 bits)*/
+      int taken_nottakenPHT_size; /*number of entries*/
+      int g_mask; /*mask to get g bits from gbhr*/
+      int i_mask; /*mask to get i bits from @jump ins*/
+      char first_prediction; /*prediction of main pht*/
+      int hit; /*hit: 1, miss: 0*/
+    } two;
   } config;
 };
 
