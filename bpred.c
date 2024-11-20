@@ -601,9 +601,9 @@ bpred_dir_lookup(struct bpred_dir_t *pred_dir,	/* branch dir predictor inst */
 
     case BPredYags:
       {
-        int g, i, c, higher_bit_2bitCounter;
-        bool hit = false;
-        char first_prediction, alternative_prediction, tag, lower_bits_pc; 
+        int g, i, c, higher_bit_2bitCounter; 
+        int hit=0;
+        char alternative_prediction, tag, lower_bits_pc, first_prediction; 
         char *prediction;
 
         lower_bits_pc = baddr & 0b111111;  //get 6 lower bits from pc
@@ -612,16 +612,20 @@ bpred_dir_lookup(struct bpred_dir_t *pred_dir,	/* branch dir predictor inst */
         c = (i << pred_dir->config.two.g_bits) | g;
 
         first_prediction = pred_dir->config.two.pht_table[c % pred_dir->config.two.pht_size];
-
+       
         higher_bit_2bitCounter = (first_prediction >> 1) & 0b01;
+        pred_dir->config.two.first_prediction =  higher_bit_2bitCounter;
+
         if(higher_bit_2bitCounter == 1) 
         {
           alternative_prediction = pred_dir->config.two.notTakenPHT_table[c % pred_dir->config.two.taken_nottakenPHT_size];
           tag = (alternative_prediction & 0b11111100) >> 2;
 
           if(tag == lower_bits_pc) {
-            hit = true;
+            hit = 1;
+            (pred_dir->config.two.notTakenPHT_table[c % pred_dir->config.two.taken_nottakenPHT_size]) &= 0b00000011;
             prediction = &(pred_dir->config.two.notTakenPHT_table[c % pred_dir->config.two.taken_nottakenPHT_size]);
+            pred_dir->config.two.hit = 1;
           }
         }
 
@@ -631,13 +635,16 @@ bpred_dir_lookup(struct bpred_dir_t *pred_dir,	/* branch dir predictor inst */
           tag = (alternative_prediction & 0b11111100) >> 2;
 
           if(tag == lower_bits_pc) {
-            hit = true;
+            hit = 1;
+            (pred_dir->config.two.takenPHT_table[c % pred_dir->config.two.taken_nottakenPHT_size]) &= 0b00000011;
             p = &(pred_dir->config.two.takenPHT_table[c % pred_dir->config.two.taken_nottakenPHT_size]);
+            pred_dir->config.two.hit = 1;
           }
         }
 
         if(!hit) {
           p = &(pred_dir->config.two.pht_table[c % pred_dir->config.two.pht_size]);
+          pred_dir->config.two.hit = 0;
         }
 
       }
@@ -875,6 +882,8 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
   struct bpred_btb_ent_t *pbtb = NULL;
   struct bpred_btb_ent_t *lruhead = NULL, *lruitem = NULL;
   int index, i;
+  int c, g, i2;
+  char two_bit_counter;
 
   /* don't change bpred state for non-branch instructions or if this
    * is a stateless predictor*/
@@ -961,6 +970,64 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
       pred->dirpred.twolev->config.two.shiftregs[l1index] =
 	shift_reg & ((1 << pred->dirpred.twolev->config.two.shift_width) - 1);
     }
+
+    if ((MD_OP_FLAGS(op) & (F_CTRL|F_UNCOND)) != (F_CTRL|F_UNCOND) && (pred->class == BPredYags)){
+        pred->dirpred.twolev->config.two.gbhr_table << 1;
+        if (taken){
+            pred->dirpred.twolev->config.two.gbhr_table | 1;
+        }
+        int tag = baddr & 0b111111;
+
+        i2 = baddr & pred->dirpred.twolev->config.two.i_mask;
+        g = pred->dirpred.twolev->config.two.gbhr_table & pred->dirpred.twolev->config.two.g_mask;
+        c = (i2 << pred->dirpred.twolev->config.two.g_bits) | g;
+
+        two_bit_counter = pred->dirpred.twolev->config.two.pht_table[c % pred->dirpred.twolev->config.two.pht_size] & 0b11;
+
+        if (taken){ 
+            if (two_bit_counter < 3) two_bit_counter++; }
+        else {
+            if (two_bit_counter > 0) two_bit_counter--; }
+
+    pred->dirpred.twolev->config.two.pht_table[c % pred->dirpred.twolev->config.two.pht_size] = two_bit_counter;
+
+
+
+    if(pred->dirpred.twolev->config.two.hit){
+        if (!pred->dirpred.twolev->config.two.first_prediction){
+            two_bit_counter =  pred->dirpred.twolev->config.two.takenPHT_table[c % pred->dirpred.twolev->config.two.taken_nottakenPHT_size] & 0b11;
+                if (two_bit_counter < 3) two_bit_counter++;
+                two_bit_counter = two_bit_counter | (tag << 2);
+                pred->dirpred.twolev->config.two.takenPHT_table[c % pred->dirpred.twolev->config.two.taken_nottakenPHT_size] = two_bit_counter;
+
+        }
+        else {
+            two_bit_counter =  pred->dirpred.twolev->config.two.notTakenPHT_table[c % pred->dirpred.twolev->config.two.taken_nottakenPHT_size] & 0b11;
+                if (two_bit_counter < 3) two_bit_counter++;
+                two_bit_counter = two_bit_counter | (tag << 2);
+                pred->dirpred.twolev->config.two.notTakenPHT_table[c % pred->dirpred.twolev->config.two.taken_nottakenPHT_size] = two_bit_counter;
+        }
+    }
+    else {
+        if (pred_taken != taken){
+            if (pred_taken == 1){
+            two_bit_counter =  pred->dirpred.twolev->config.two.takenPHT_table[c % pred->dirpred.twolev->config.two.taken_nottakenPHT_size] & 0b11;
+                if (two_bit_counter < 3) two_bit_counter++;
+                two_bit_counter = two_bit_counter | (tag << 2);
+                pred->dirpred.twolev->config.two.takenPHT_table[c % pred->dirpred.twolev->config.two.taken_nottakenPHT_size] = two_bit_counter;
+
+        }
+        else {
+            two_bit_counter =  pred->dirpred.twolev->config.two.notTakenPHT_table[c % pred->dirpred.twolev->config.two.taken_nottakenPHT_size] & 0b11;
+                if (two_bit_counter < 3) two_bit_counter++;
+                two_bit_counter = two_bit_counter | (tag << 2);
+                pred->dirpred.twolev->config.two.notTakenPHT_table[c % pred->dirpred.twolev->config.two.taken_nottakenPHT_size] = two_bit_counter;
+        }
+    }
+
+    }
+}
+
 
   /* find BTB entry if it's a taken branch (don't allocate for non-taken) */
   if (taken)
