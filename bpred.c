@@ -331,7 +331,7 @@ bpred_dir_config(
 
   case BPredYags:
     fprintf(stream,
-      "pred_dir: %s, gbhr_size: 8, pht_size: %s, pht_taken_size: %s, pht_nottaken_size: %s, xor: 0, direct-mapped\n",
+      "pred_dir: %s, gbhr_size: 8, pht_size: %d, pht_taken_size: %d, pht_nottaken_size: %d, xor: 0, direct-mapped\n",
       name, pred_dir->config.two.pht_size, pred_dir->config.two.taken_nottakenPHT_size,
       pred_dir->config.two.taken_nottakenPHT_size);
     break;
@@ -604,7 +604,7 @@ bpred_dir_lookup(struct bpred_dir_t *pred_dir,	/* branch dir predictor inst */
         int g, i, c, higher_bit_2bitCounter; 
         int hit=0;
         char alternative_prediction, tag, lower_bits_pc, first_prediction; 
-        char *prediction;
+        
 
         lower_bits_pc = baddr & 0b111111;  //get 6 lower bits from pc
         g = pred_dir->config.two.gbhr_table & pred_dir->config.two.g_mask;
@@ -972,16 +972,18 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
     }
 
     if ((MD_OP_FLAGS(op) & (F_CTRL|F_UNCOND)) != (F_CTRL|F_UNCOND) && (pred->class == BPredYags)){
-        pred->dirpred.twolev->config.two.gbhr_table << 1;
-        if (taken){
-            pred->dirpred.twolev->config.two.gbhr_table | 1;
-        }
+        
         int tag = baddr & 0b111111;
 
         i2 = baddr & pred->dirpred.twolev->config.two.i_mask;
         g = pred->dirpred.twolev->config.two.gbhr_table & pred->dirpred.twolev->config.two.g_mask;
         c = (i2 << pred->dirpred.twolev->config.two.g_bits) | g;
 
+        pred->dirpred.twolev->config.two.gbhr_table <<= 1;
+        if (taken){
+            pred->dirpred.twolev->config.two.gbhr_table |= 1;
+        }
+        
         two_bit_counter = pred->dirpred.twolev->config.two.pht_table[c % pred->dirpred.twolev->config.two.pht_size] & 0b11;
 
         if (taken){ 

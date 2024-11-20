@@ -133,10 +133,10 @@ struct bpred_dir_t {
       unsigned char *l2table;	/* level-2 prediction state table */
       char gbhr_table; /*g lower bits: prediction history*/
       char g_bits;  /*between 1 and 5*/
-      char *pht_table; /*2 lower bits: 2BitCounter*/
+      unsigned char *pht_table; /*2 lower bits: 2BitCounter*/
       int pht_size; /*number of entries*/
-      char *takenPHT_table; /*tag (6 bits) and 2BitCounter (2 bits)*/
-      char *notTakenPHT_table; /*tag (6 bits) and 2BitCounter (2 bits)*/
+      unsigned char *takenPHT_table; /*tag (6 bits) and 2BitCounter (2 bits)*/
+      unsigned char *notTakenPHT_table; /*tag (6 bits) and 2BitCounter (2 bits)*/
       int taken_nottakenPHT_size; /*number of entries*/
       int g_mask; /*mask to get g bits from gbhr*/
       int i_mask; /*mask to get i bits from @jump ins*/
