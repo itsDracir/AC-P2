@@ -624,7 +624,7 @@ bpred_dir_lookup(struct bpred_dir_t *pred_dir,	/* branch dir predictor inst */
           if(tag == lower_bits_pc) {
             hit = 1;
             (pred_dir->config.two.notTakenPHT_table[c % pred_dir->config.two.taken_nottakenPHT_size]) &= 0b00000011;
-            prediction = &(pred_dir->config.two.notTakenPHT_table[c % pred_dir->config.two.taken_nottakenPHT_size]);
+            p = &(pred_dir->config.two.notTakenPHT_table[c % pred_dir->config.two.taken_nottakenPHT_size]);
             pred_dir->config.two.hit = 1;
           }
         }
