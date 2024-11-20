@@ -998,30 +998,42 @@ bpred_update(struct bpred_t *pred,	/* branch predictor instance */
     if(pred->dirpred.twolev->config.two.hit){
         if (!pred->dirpred.twolev->config.two.first_prediction){
             two_bit_counter =  pred->dirpred.twolev->config.two.takenPHT_table[c % pred->dirpred.twolev->config.two.taken_nottakenPHT_size] & 0b11;
-                if (two_bit_counter < 3) two_bit_counter++;
+                if (taken){ 
+                  if (two_bit_counter < 3) two_bit_counter++; }
+                else {
+                  if (two_bit_counter > 0) two_bit_counter--; }
                 two_bit_counter = two_bit_counter | (tag << 2);
                 pred->dirpred.twolev->config.two.takenPHT_table[c % pred->dirpred.twolev->config.two.taken_nottakenPHT_size] = two_bit_counter;
 
         }
         else {
             two_bit_counter =  pred->dirpred.twolev->config.two.notTakenPHT_table[c % pred->dirpred.twolev->config.two.taken_nottakenPHT_size] & 0b11;
-                if (two_bit_counter < 3) two_bit_counter++;
+                if (taken){ 
+                  if (two_bit_counter < 3) two_bit_counter++; }
+                else {
+                  if (two_bit_counter > 0) two_bit_counter--; }
                 two_bit_counter = two_bit_counter | (tag << 2);
                 pred->dirpred.twolev->config.two.notTakenPHT_table[c % pred->dirpred.twolev->config.two.taken_nottakenPHT_size] = two_bit_counter;
         }
     }
     else {
         if (pred_taken != taken){
-            if (pred_taken == 1){
+            if (pred_taken == 0){
             two_bit_counter =  pred->dirpred.twolev->config.two.takenPHT_table[c % pred->dirpred.twolev->config.two.taken_nottakenPHT_size] & 0b11;
-                if (two_bit_counter < 3) two_bit_counter++;
+                if (taken){ 
+                  if (two_bit_counter < 3) two_bit_counter++; }
+                else {
+                  if (two_bit_counter > 0) two_bit_counter--; }
                 two_bit_counter = two_bit_counter | (tag << 2);
                 pred->dirpred.twolev->config.two.takenPHT_table[c % pred->dirpred.twolev->config.two.taken_nottakenPHT_size] = two_bit_counter;
 
         }
         else {
             two_bit_counter =  pred->dirpred.twolev->config.two.notTakenPHT_table[c % pred->dirpred.twolev->config.two.taken_nottakenPHT_size] & 0b11;
-                if (two_bit_counter < 3) two_bit_counter++;
+                if (taken){ 
+                  if (two_bit_counter < 3) two_bit_counter++; }
+                else {
+                  if (two_bit_counter > 0) two_bit_counter--; }
                 two_bit_counter = two_bit_counter | (tag << 2);
                 pred->dirpred.twolev->config.two.notTakenPHT_table[c % pred->dirpred.twolev->config.two.taken_nottakenPHT_size] = two_bit_counter;
         }
